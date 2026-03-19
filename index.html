@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>MyStream</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--surface:#13131c;--card:#1a1a27;--border:#2a2a40;
+  --accent:#e8a020;--accent2:#c45c1a;--text:#e8e8f0;--muted:#7070a0;
+  --danger:#e05050;--success:#50c878;--radius:12px;
+  --fh:'Syne',sans-serif;--fb:'DM Sans',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.5}
+.app{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh}
+
+/* SETUP BANNER */
+#setup-banner{background:rgba(232,160,32,.12);border-bottom:1px solid rgba(232,160,32,.3);padding:10px 24px;display:flex;align-items:center;gap:12px;font-size:13px;color:var(--accent)}
+#setup-banner.hidden{display:none!important}
+#setup-banner a{color:var(--accent);font-weight:600}
+
+/* HEADER */
+header{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 clamp(16px,4vw,48px);display:flex;align-items:center;gap:12px;height:64px}
+.logo{font-family:var(--fh);font-size:22px;font-weight:800;letter-spacing:-.5px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+.logo span{font-weight:400;-webkit-text-fill-color:var(--muted)}
+.header-search{flex:1;max-width:320px;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0 14px;height:38px;transition:border-color .2s}
+.header-search:focus-within{border-color:var(--accent)}
+.header-search input{background:none;border:none;outline:none;color:var(--text);font:inherit;flex:1;font-size:14px}
+.header-search svg{color:var(--muted);flex-shrink:0}
+.header-actions{display:flex;gap:8px;margin-left:auto}
+.db-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:4px 10px;border:1px solid var(--border);border-radius:20px}
+.db-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.db-dot.ok{background:var(--success)}
+.db-dot.err{background:var(--danger)}
+
+/* SEARCH HERO */
+.search-hero{background:linear-gradient(160deg,rgba(232,160,32,.07),rgba(196,92,26,.03));border-bottom:1px solid var(--border);padding:24px clamp(16px,4vw,48px)}
+.search-hero-label{font-family:var(--fh);font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.search-row{display:flex;gap:10px;flex-wrap:wrap}
+.search-big{flex:1;min-width:200px;display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:0 18px;height:50px;transition:border-color .2s,box-shadow .2s}
+.search-big:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,160,32,.1)}
+.search-big input{background:none;border:none;outline:none;color:var(--text);font:inherit;flex:1;font-size:15px}
+.btn-search-all{background:var(--accent);color:#000;border:none;border-radius:10px;height:50px;padding:0 20px;font:700 14px var(--fh);cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s}
+.btn-search-all:hover{background:#f5b030;transform:translateY(-1px);box-shadow:0 6px 20px rgba(232,160,32,.3)}
+.btn-search-pick{background:var(--card);color:var(--text);border:1.5px solid var(--border);border-radius:10px;height:50px;padding:0 16px;font:600 13px var(--fb);cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s}
+.btn-search-pick:hover{border-color:var(--accent);color:var(--accent)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:none;font:500 13px var(--fb);cursor:pointer;transition:all .15s;white-space:nowrap;text-decoration:none}
+.btn-primary{background:var(--accent);color:#000}
+.btn-primary:hover{background:#f5b030;transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--accent);background:rgba(232,160,32,.07)}
+
+/* MAIN */
+main{flex:1;padding:clamp(20px,3vw,40px) clamp(16px,4vw,48px)}
+.section-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px}
+.section-title{font-family:var(--fh);font-size:26px;font-weight:800;letter-spacing:-.5px}
+.section-count{font-size:13px;color:var(--muted);margin-left:10px;font-family:var(--fb)}
+
+/* FILTER BAR */
+.filter-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+.filter-label{font-family:var(--fh);font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.tag-btn{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font:500 13px var(--fb);cursor:pointer;transition:all .15s}
+.tag-btn:hover{border-color:var(--accent);color:var(--text)}
+.tag-btn.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600}
+
+/* GRID */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
+
+/* CARD */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:transform .2s,border-color .2s,box-shadow .2s;animation:fadeUp .35s ease both}
+.card:hover{transform:translateY(-4px);border-color:rgba(232,160,32,.4);box-shadow:0 12px 40px rgba(0,0,0,.5),0 0 0 1px rgba(232,160,32,.15)}
+.card-thumb{width:100%;aspect-ratio:16/9;background:var(--surface);position:relative;overflow:hidden}
+.card-thumb img{width:100%;height:100%;object-fit:cover;transition:transform .4s}
+.card:hover .card-thumb img{transform:scale(1.04)}
+.card-thumb-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;opacity:.25;background:linear-gradient(135deg,#1a1a27,#0f0f1a)}
+.play-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);opacity:0;transition:opacity .2s}
+.card:hover .play-overlay{opacity:1}
+.play-circle{width:52px;height:52px;border-radius:50%;background:rgba(232,160,32,.9);display:flex;align-items:center;justify-content:center;transform:scale(.8);transition:transform .2s}
+.card:hover .play-circle{transform:scale(1)}
+.card-body{padding:14px 16px 16px}
+.card-title{font-family:var(--fh);font-weight:700;font-size:15px;margin-bottom:6px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-url{font-size:12px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.card-tag{font-size:11px;font-weight:600;letter-spacing:.5px;padding:3px 10px;border-radius:20px;background:rgba(232,160,32,.12);color:var(--accent);border:1px solid rgba(232,160,32,.25)}
+.card-actions{display:flex;gap:6px;opacity:0;transition:opacity .15s}
+.card:hover .card-actions{opacity:1}
+.icon-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.icon-btn:hover{color:var(--text);border-color:var(--accent);background:rgba(232,160,32,.1)}
+.icon-btn.del:hover{color:var(--danger);border-color:var(--danger);background:rgba(224,80,80,.1)}
+
+/* EMPTY */
+.empty-state{text-align:center;padding:80px 20px;animation:fadeUp .5s ease}
+.empty-icon{font-size:64px;margin-bottom:20px;filter:grayscale(1);opacity:.4}
+.empty-state h2{font-family:var(--fh);font-size:22px;color:var(--muted);margin-bottom:8px}
+.empty-state p{color:var(--muted);font-size:14px;max-width:340px;margin:0 auto 24px}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.82);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .2s ease}
+.overlay.hidden{display:none!important}
+
+/* MODAL */
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:520px;padding:32px;animation:scaleIn .2s ease;position:relative;max-height:90vh;overflow-y:auto}
+.modal h2{font-family:var(--fh);font-size:22px;font-weight:800;margin-bottom:24px}
+.modal-close{position:absolute;top:20px;right:20px;background:none;border:1px solid var(--border);border-radius:8px;width:32px;height:32px;cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center;transition:all .15s}
+.modal-close:hover{color:var(--text);border-color:var(--muted)}
+
+/* FORM */
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.form-group input,.form-group select,.form-group textarea{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font:inherit;font-size:14px;outline:none;transition:border-color .2s}
+.form-group textarea{resize:vertical;min-height:70px}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent)}
+.form-group select option{background:var(--card)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-actions{display:flex;gap:10px;margin-top:22px;justify-content:flex-end}
+.tag-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}
+.tag-chip{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s}
+.tag-chip.selected{background:rgba(232,160,32,.15);border-color:var(--accent);color:var(--accent)}
+.new-tag-row{display:flex;gap:8px;margin-top:8px}
+.new-tag-row input{flex:1}
+
+/* SEARCH MODAL */
+.search-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:680px;animation:scaleIn .2s ease;position:relative;overflow:hidden;display:flex;flex-direction:column;max-height:90vh}
+.sm-top{padding:22px 26px 0;flex-shrink:0}
+.sm-top h2{font-family:var(--fh);font-size:20px;font-weight:800;margin-bottom:4px}
+.sm-top p{font-size:13px;color:var(--muted);margin-bottom:16px}
+.sm-input-row{display:flex;gap:10px;padding:0 26px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sm-input{flex:1;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:11px 16px;color:var(--text);font:inherit;font-size:15px;outline:none;transition:border-color .2s}
+.sm-input:focus{border-color:var(--accent)}
+.sm-body{padding:16px 26px;overflow-y:auto;flex:1}
+.site-cat{margin-bottom:18px}
+.site-cat-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.site-list{display:flex;flex-direction:column;gap:3px}
+.site-row{display:flex;align-items:center;gap:12px;padding:8px 11px;border-radius:8px;border:1px solid transparent;cursor:pointer;transition:all .15s;user-select:none}
+.site-row:hover{background:rgba(232,160,32,.04);border-color:var(--border)}
+.site-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+.site-row-info{flex:1;min-width:0}
+.site-row-name{font-size:14px;font-weight:500}
+.site-row-url{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.site-emoji{font-size:18px;flex-shrink:0;width:26px;text-align:center}
+.sm-footer{padding:14px 26px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0;background:var(--surface)}
+.sel-count{font-size:13px;color:var(--muted)}
+.fs{flex:1}
+.btntog{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 11px;font:500 12px var(--fb);color:var(--muted);cursor:pointer;transition:all .15s}
+.btntog:hover{color:var(--text);border-color:var(--accent)}
+.btn-open-sel{background:var(--card);color:var(--text);border:1.5px solid var(--border);border-radius:10px;padding:9px 16px;font:600 13px var(--fb);cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .15s}
+.btn-open-sel:hover{border-color:var(--accent);color:var(--accent)}
+.btn-open-all{background:var(--accent);color:#000;border:none;border-radius:10px;padding:9px 20px;font:700 14px var(--fh);cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s}
+.btn-open-all:hover{background:#f5b030}
+
+/* LOGIN MODAL */
+.login-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:380px;padding:36px;animation:scaleIn .2s ease;position:relative;text-align:center}
+.login-modal h2{font-family:var(--fh);font-size:22px;font-weight:800;margin-bottom:8px}
+.login-modal p{font-size:14px;color:var(--muted);margin-bottom:24px}
+.login-modal input{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:12px 16px;color:var(--text);font:inherit;font-size:15px;outline:none;transition:border-color .2s;text-align:center;letter-spacing:3px;font-size:18px}
+.login-modal input:focus{border-color:var(--accent)}
+.login-err{font-size:13px;color:var(--danger);margin-top:8px;min-height:18px}
+
+/* PLAYER FULLSCREEN */
+.player-fs{position:fixed;inset:0;z-index:300;background:#000;display:flex;flex-direction:column;animation:fadeIn .2s ease}
+.player-fs.hidden{display:none!important}
+.player-topbar{display:flex;align-items:center;gap:12px;padding:0 16px;height:52px;background:rgba(10,10,15,.95);border-bottom:1px solid var(--border);flex-shrink:0}
+.player-topbar-title{font-family:var(--fh);font-weight:700;font-size:15px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.player-topbar-url{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.player-topbar-actions{display:flex;gap:8px;flex-shrink:0}
+.player-progress{height:3px;background:var(--border);flex-shrink:0;overflow:hidden}
+.player-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .4s ease}
+.player-iframe-area{flex:1;position:relative;background:#000}
+.player-iframe-area iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+.iframe-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:4;flex-direction:column;gap:16px}
+.iframe-loading.hidden{display:none}
+.spinner{width:40px;height:40px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin .8s linear infinite}
+.loading-label{font-size:13px;color:var(--muted)}
+.iframe-blocked{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px 24px;text-align:center;background:var(--bg);z-index:5}
+.iframe-blocked.show{display:flex}
+.blocked-icon{font-size:52px;opacity:.5}
+.blocked-title{font-family:var(--fh);font-size:20px;font-weight:700}
+.blocked-desc{font-size:14px;color:var(--muted);max-width:400px;line-height:1.6}
+.proxy-status{font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(232,160,32,.1);color:var(--accent);border:1px solid rgba(232,160,32,.2)}
+.blocked-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+
+/* TOAST */
+#tc{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px}
+.toast{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:11px 17px;font-size:14px;color:var(--text);box-shadow:0 8px 30px rgba(0,0,0,.4);animation:slideIn .25s ease;display:flex;align-items:center;gap:8px}
+.toast.success{border-color:rgba(80,200,120,.4)}
+.toast.error{border-color:rgba(224,80,80,.4)}
+
+/* FOOTER */
+footer{border-top:1px solid var(--border);padding:14px clamp(16px,4vw,48px);display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted);flex-wrap:wrap;gap:10px}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+@keyframes slideOut{from{opacity:1;transform:none}to{opacity:0;transform:translateX(20px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}.header-search{display:none}.section-title{font-size:22px}.player-topbar-url{display:none}.sm-top,.sm-input-row,.sm-body,.sm-footer{padding-left:16px;padding-right:16px}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SETUP BANNER -->
+<div id="setup-banner">
+  ⚙️ Configura il file: imposta <strong>SUPABASE_URL</strong>, <strong>SUPABASE_ANON_KEY</strong> e <strong>ADMIN_PASSWORD</strong> nel blocco CONFIG in fondo al file.
+  <a href="https://supabase.com" target="_blank">Crea account Supabase gratis →</a>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">My<span>Stream</span></div>
+  <div class="header-search">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input id="searchInput" type="text" placeholder="Filtra libreria…" oninput="renderAll()"/>
+  </div>
+  <div class="header-actions">
+    <div class="db-status" id="dbStatus"><div class="db-dot" id="dbDot"></div><span id="dbLabel">—</span></div>
+    <button class="btn btn-ghost" onclick="exportData()">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Esporta
+    </button>
+    <label class="btn btn-ghost" style="cursor:pointer">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Importa
+      <input type="file" accept=".json" style="display:none" onchange="importData(this)"/>
+    </label>
+    <button class="btn btn-primary" id="addBtn" onclick="requireAdmin(()=>openAddModal())">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Aggiungi
+    </button>
+  </div>
+</header>
+
+<!-- SEARCH HERO -->
+<div class="search-hero">
+  <div class="search-hero-label">
+    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    Cerca su tutti i siti
+  </div>
+  <div class="search-row">
+    <div class="search-big">
+      <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="color:var(--muted)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="heroSearch" type="text" placeholder="Nome del film, serie o anime…" onkeydown="if(event.key==='Enter')heroOpenAll()"/>
+    </div>
+    <button class="btn-search-all" onclick="heroOpenAll()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      Apri tutti
+    </button>
+    <button class="btn-search-pick" onclick="openSearchModal()">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Scegli siti
+    </button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+  <div class="section-header">
+    <div>
+      <span class="section-title" id="sectionTitle">La Mia Libreria</span>
+      <span class="section-count" id="countBadge"></span>
+    </div>
+  </div>
+  <div class="filter-bar" id="filterBar"><span class="filter-label">Categoria</span><button class="tag-btn active" onclick="setCategory('ALL')">Tutti</button></div>
+  <div class="grid" id="grid"></div>
+  <div class="empty-state" id="emptyState" style="display:none">
+    <div class="empty-icon">📺</div>
+    <h2>Nessun contenuto trovato</h2>
+    <p id="emptyMsg">Aggiungi il tuo primo link cliccando il pulsante in alto a destra.</p>
+    <button class="btn btn-primary" onclick="requireAdmin(()=>openAddModal())">+ Aggiungi il primo link</button>
+  </div>
+</main>
+
+<footer>
+  <span>MyStream</span>
+  <span id="storageInfo"></span>
+</footer>
+</div>
+
+<!-- PLAYER -->
+<div class="player-fs hidden" id="playerFs">
+  <div class="player-topbar">
+    <button class="icon-btn" onclick="closePlayer()" title="Chiudi" style="flex-shrink:0">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div class="player-topbar-title" id="playerTitle">—</div>
+    <div class="player-topbar-url" id="playerUrlLabel">—</div>
+    <div class="player-topbar-actions">
+      <button class="btn btn-ghost" style="font-size:12px;height:34px" onclick="reloadIframe()">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Ricarica
+      </button>
+      <a id="playerExtLink" href="#" target="_blank" rel="noopener" class="btn btn-primary" style="font-size:12px;height:34px">↗ Apri tab</a>
+    </div>
+  </div>
+  <div class="player-progress"><div class="player-progress-bar" id="progressBar"></div></div>
+  <div class="player-iframe-area">
+    <div class="iframe-loading" id="iframeLoading">
+      <div class="spinner"></div>
+      <div class="loading-label" id="loadingLabel">Caricamento…</div>
+    </div>
+    <div class="iframe-blocked" id="iframeBlocked">
+      <div class="blocked-icon">🚫</div>
+      <div class="blocked-title">Sito non incorporabile</div>
+      <div class="blocked-desc" id="blockedDesc">Il sito blocca gli iframe. Configura il Worker proxy per superare questa limitazione.</div>
+      <div class="proxy-status" id="proxyStatus">—</div>
+      <div class="blocked-actions">
+        <button class="btn btn-ghost" onclick="reloadIframe()">🔄 Riprova</button>
+        <a id="blockedExtLink" href="#" target="_blank" rel="noopener" class="btn btn-primary">↗ Apri nel browser</a>
+      </div>
+    </div>
+    <iframe id="playerIframe" src="about:blank" allowfullscreen allow="autoplay;fullscreen;encrypted-media"></iframe>
+  </div>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="overlay hidden" id="loginOverlay">
+  <div class="login-modal">
+    <h2>🔐 Area admin</h2>
+    <p>Inserisci la password per modificare i contenuti</p>
+    <input type="password" id="loginInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/>
+    <div class="login-err" id="loginErr"></div>
+    <div style="display:flex;gap:10px;margin-top:18px;justify-content:center">
+      <button class="btn btn-ghost" onclick="closeLogin()">Annulla</button>
+      <button class="btn btn-primary" onclick="doLogin()">Accedi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="overlay hidden" id="addOverlay" onclick="closeAddModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeAddModal()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <h2 id="modalTitle">Aggiungi Link</h2>
+    <div class="form-group"><label>Titolo *</label><input id="fTitle" type="text" placeholder="Es. Breaking Bad"/></div>
+    <div class="form-group"><label>URL *</label><input id="fUrl" type="url" placeholder="https://..." oninput="autoThumb()"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Thumbnail</label><input id="fThumb" type="url" placeholder="https://...jpg"/></div>
+      <div class="form-group"><label>Tipo</label>
+        <select id="fType">
+          <option value="film">🎬 Film</option><option value="serie">📺 Serie TV</option>
+          <option value="canale">📡 Canale</option><option value="sport">⚽ Sport</option>
+          <option value="anime">🎌 Anime</option><option value="altro">🎭 Altro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Categoria</label>
+      <div class="tag-chips" id="tagChips"></div>
+      <div class="new-tag-row"><input id="newTagInput" type="text" placeholder="Nuova categoria…"/><button class="btn btn-ghost" onclick="addNewTag()">+ Aggiungi</button></div>
+    </div>
+    <div class="form-group"><label>Note</label><textarea id="fNotes" placeholder="Note personali…"></textarea></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeAddModal()">Annulla</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveItem()">💾 Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- SEARCH MODAL -->
+<div class="overlay hidden" id="searchOverlay" onclick="closeSearchModal(event)">
+  <div class="search-modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeSearchModal()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div class="sm-top">
+      <h2>🔍 Scegli su quali siti cercare</h2>
+      <p>Seleziona i siti, poi clicca <strong style="color:var(--text)">Apri selezionati</strong> o <strong style="color:var(--accent)">Apri tutti</strong>.</p>
+    </div>
+    <div class="sm-input-row">
+      <input class="sm-input" id="smQuery" type="text" placeholder="Nome del film, serie o anime…" onkeydown="if(event.key==='Enter')openSelectedSites()"/>
+    </div>
+    <div class="sm-body" id="smSiteList"></div>
+    <div class="sm-footer">
+      <span class="sel-count" id="selCount">0 siti</span>
+      <div class="fs"></div>
+      <button class="btntog" id="selAllBtn" onclick="toggleSelectAll()">Seleziona tutti</button>
+      <button class="btn-open-sel" onclick="openSelectedSites()">Apri selezionati</button>
+      <button class="btn-open-all" onclick="openAllSites()">⚡ Apri tutti</button>
+    </div>
+  </div>
+</div>
+
+<div id="tc"></div>
+
+<script>
+/* ═══════════════════════════
+   ⚙️  CONFIG — modifica qui
+═══════════════════════════ */
+const CONFIG = {
+  SUPABASE_URL:      'INCOLLA_QUI_IL_TUO_SUPABASE_URL',
+  SUPABASE_ANON_KEY: 'INCOLLA_QUI_IL_TUO_SUPABASE_ANON_KEY',
+  ADMIN_PASSWORD:    'cambia_questa_password',
+  PROXY_URL:         '',  // es: 'https://mystream-proxy.tuonome.workers.dev'
+};
+/* ═══════════════════════════ */
+
+/* ── SUPABASE ── */
+let db = null;
+let isConfigured = false;
+
+function initSupabase() {
+  if (
+    CONFIG.SUPABASE_URL.startsWith('INCOLLA') ||
+    CONFIG.SUPABASE_ANON_KEY.startsWith('INCOLLA')
+  ) {
+    setDbStatus(false, 'Non configurato');
+    return;
+  }
+  try {
+    const { createClient } = supabase;
+    db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    isConfigured = true;
+    document.getElementById('setup-banner').classList.add('hidden');
+    setDbStatus(null, 'Connessione…');
+    loadItems();
+  } catch(e) {
+    setDbStatus(false, 'Errore init');
+  }
+}
+
+function setDbStatus(ok, label) {
+  const dot = document.getElementById('dbDot');
+  document.getElementById('dbLabel').textContent = label;
+  dot.className = 'db-dot' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+}
+
+/* ── ITEMS STATE ── */
+let items = [];
+let tags  = ['Film','Serie TV','Sport','Anime','Canale','Altro'];
+let activeTag = 'ALL';
+let editId = null;
+
+/* ── LOAD / SAVE ── */
+async function loadItems() {
+  if (!db) { loadLocal(); return; }
+  try {
+    const { data, error } = await db.from('links').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    items = data || [];
+    // Raccoglie tag unici dal db
+    const dbTags = [...new Set(items.map(i => i.tag).filter(Boolean))];
+    dbTags.forEach(t => { if (!tags.includes(t)) tags.push(t); });
+    setDbStatus(true, 'Online');
+    renderAll();
+    updateStorageInfo();
+  } catch(e) {
+    setDbStatus(false, 'Errore DB');
+    loadLocal();
+  }
+}
+
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem('mystream_v1');
+    if (raw) { const s = JSON.parse(raw); items = s.items||[]; tags = s.tags||tags; }
+  } catch(e) {}
+  renderAll();
+  updateStorageInfo();
+}
+
+function saveLocal() {
+  localStorage.setItem('mystream_v1', JSON.stringify({ items, tags }));
+}
+
+/* ── CRUD ── */
+async function addItem(item) {
+  if (db) {
+    const { data, error } = await db.from('links').insert([{
+      title: item.title, url: item.url, thumb: item.thumb,
+      type: item.type, tag: item.tag, notes: item.notes
+    }]).select().single();
+    if (error) throw error;
+    items.unshift(data);
+  } else {
+    item.id = uid(); item.created_at = new Date().toISOString();
+    items.unshift(item); saveLocal();
+  }
+}
+
+async function updateItem(id, item) {
+  if (db) {
+    const { error } = await db.from('links').update({
+      title: item.title, url: item.url, thumb: item.thumb,
+      type: item.type, tag: item.tag, notes: item.notes
+    }).eq('id', id);
+    if (error) throw error;
+    const idx = items.findIndex(x => x.id === id);
+    if (idx !== -1) items[idx] = { ...items[idx], ...item };
+  } else {
+    const idx = items.findIndex(x => x.id === id);
+    if (idx !== -1) { items[idx] = { ...items[idx], ...item }; saveLocal(); }
+  }
+}
+
+async function removeItem(id) {
+  if (db) {
+    const { error } = await db.from('links').delete().eq('id', id);
+    if (error) throw error;
+  }
+  items = items.filter(x => x.id !== id);
+  if (!db) saveLocal();
+}
+
+/* ── RENDER ── */
+const typeEmoji = {film:'🎬',serie:'📺',canale:'📡',sport:'⚽',anime:'🎌',altro:'🎭'};
+
+function renderAll() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  const filtered = items.filter(it =>
+    (activeTag === 'ALL' || it.tag === activeTag) &&
+    (!q || it.title.toLowerCase().includes(q) || it.url.toLowerCase().includes(q))
+  );
+  document.getElementById('sectionTitle').textContent = activeTag === 'ALL' ? 'La Mia Libreria' : activeTag;
+  document.getElementById('countBadge').textContent = filtered.length ? `${filtered.length} titol${filtered.length===1?'o':'i'}` : '';
+  renderFilterBar();
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('emptyState');
+  grid.innerHTML = '';
+  if (!filtered.length) {
+    empty.style.display = '';
+    document.getElementById('emptyMsg').textContent = q ? `Nessun risultato per "${q}"` : 'Aggiungi il tuo primo link.';
+  } else {
+    empty.style.display = 'none';
+    filtered.forEach((it, i) => { const c = buildCard(it); c.style.animationDelay = `${i*35}ms`; grid.appendChild(c); });
+  }
+}
+
+function buildCard(it) {
+  const card = document.createElement('div'); card.className = 'card';
+  const emoji = typeEmoji[it.type] || '🎭';
+  const thumb = it.thumb
+    ? `<img src="${esc(it.thumb)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="card-thumb-placeholder" style="display:none">${emoji}</div>`
+    : `<div class="card-thumb-placeholder">${emoji}</div>`;
+  card.innerHTML = `
+    <div class="card-thumb">${thumb}
+      <div class="play-overlay"><div class="play-circle"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+    </div>
+    <div class="card-body">
+      <div class="card-title">${esc(it.title)}</div>
+      <div class="card-url">${esc(it.url)}</div>
+      ${it.notes?`<div style="font-size:12px;color:var(--muted);margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(it.notes)}</div>`:''}
+      <div class="card-footer">
+        ${it.tag?`<span class="card-tag">${esc(it.tag)}</span>`:'<span></span>'}
+        <div class="card-actions">
+          <button class="icon-btn" title="Modifica" onclick="event.stopPropagation();requireAdmin(()=>openEditModal('${it.id}'))">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="icon-btn del" title="Elimina" onclick="event.stopPropagation();requireAdmin(()=>deleteItem('${it.id}'))">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  card.addEventListener('click', () => openPlayer(it));
+  return card;
+}
+
+function renderFilterBar() {
+  const bar = document.getElementById('filterBar');
+  bar.innerHTML = '<span class="filter-label">Categoria</span>';
+  const ab = document.createElement('button');
+  ab.className = 'tag-btn' + (activeTag==='ALL'?' active':'');
+  ab.textContent = 'Tutti'; ab.onclick = () => setCategory('ALL');
+  bar.appendChild(ab);
+  [...new Set(items.map(i => i.tag).filter(Boolean))].forEach(tag => {
+    const b = document.createElement('button');
+    b.className = 'tag-btn' + (activeTag===tag?' active':'');
+    b.textContent = tag; b.onclick = () => setCategory(tag);
+    bar.appendChild(b);
+  });
+}
+
+function setCategory(cat) { activeTag = cat; renderAll(); }
+
+/* ── ADMIN AUTH ── */
+let adminUnlocked = false;
+let pendingAction = null;
+
+function requireAdmin(fn) {
+  if (adminUnlocked) { fn(); return; }
+  pendingAction = fn;
+  document.getElementById('loginOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('loginInput').focus(), 100);
+}
+
+function doLogin() {
+  const pw = document.getElementById('loginInput').value;
+  if (pw === CONFIG.ADMIN_PASSWORD) {
+    adminUnlocked = true;
+    document.getElementById('loginInput').value = '';
+    document.getElementById('loginErr').textContent = '';
+    closeLogin();
+    if (pendingAction) { pendingAction(); pendingAction = null; }
+  } else {
+    document.getElementById('loginErr').textContent = '❌ Password errata';
+    document.getElementById('loginInput').select();
+  }
+}
+
+function closeLogin() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  document.getElementById('loginInput').value = '';
+  document.getElementById('loginErr').textContent = '';
+}
+
+/* ── ADD / EDIT MODAL ── */
+function openAddModal() {
+  editId = null;
+  document.getElementById('modalTitle').textContent = 'Aggiungi Link';
+  clearForm(); renderTagChips(null);
+  document.getElementById('addOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('fTitle').focus(), 100);
+}
+
+function openEditModal(id) {
+  const it = items.find(x => x.id === id); if (!it) return;
+  editId = id;
+  document.getElementById('modalTitle').textContent = 'Modifica';
+  document.getElementById('fTitle').value = it.title || '';
+  document.getElementById('fUrl').value   = it.url || '';
+  document.getElementById('fThumb').value = it.thumb || '';
+  document.getElementById('fType').value  = it.type || 'altro';
+  document.getElementById('fNotes').value = it.notes || '';
+  renderTagChips(it.tag);
+  document.getElementById('addOverlay').classList.remove('hidden');
+}
+
+function closeAddModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('addOverlay').classList.add('hidden'); clearForm();
+}
+
+function clearForm() {
+  ['fTitle','fUrl','fThumb','fNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fType').value = 'film';
+  document.getElementById('newTagInput').value = '';
+}
+
+function renderTagChips(selected) {
+  const c = document.getElementById('tagChips'); c.innerHTML = '';
+  tags.forEach(tag => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'tag-chip' + (selected===tag?' selected':'');
+    chip.textContent = tag;
+    chip.onclick = () => { c.querySelectorAll('.tag-chip').forEach(x => x.classList.remove('selected')); chip.classList.add('selected'); };
+    c.appendChild(chip);
+  });
+}
+
+function getSelectedTag() { const s = document.querySelector('#tagChips .tag-chip.selected'); return s ? s.textContent : null; }
+
+function addNewTag() {
+  const val = document.getElementById('newTagInput').value.trim(); if (!val) return;
+  if (!tags.includes(val)) tags.push(val);
+  document.getElementById('newTagInput').value = '';
+  renderTagChips(val);
+}
+
+function autoThumb() {
+  const url = document.getElementById('fUrl').value;
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  if (yt) document.getElementById('fThumb').value = `https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg`;
+}
+
+async function saveItem() {
+  const title = document.getElementById('fTitle').value.trim();
+  const url   = document.getElementById('fUrl').value.trim();
+  if (!title) { toast('Inserisci un titolo','error'); return; }
+  if (!url)   { toast('Inserisci un URL','error'); return; }
+  const item = { title, url, thumb: document.getElementById('fThumb').value.trim(), type: document.getElementById('fType').value, tag: getSelectedTag(), notes: document.getElementById('fNotes').value.trim() };
+  const btn = document.getElementById('saveBtn');
+  btn.textContent = '⏳ Salvataggio…'; btn.disabled = true;
+  try {
+    if (editId) { await updateItem(editId, item); toast('✏️ Aggiornato!','success'); }
+    else        { await addItem(item); toast('✅ Aggiunto!','success'); }
+    closeAddModal(); renderAll(); updateStorageInfo();
+  } catch(e) {
+    toast('❌ Errore: ' + e.message, 'error');
+  }
+  btn.textContent = '💾 Salva'; btn.disabled = false;
+}
+
+async function deleteItem(id) {
+  if (!confirm('Eliminare questo link?')) return;
+  try {
+    await removeItem(id); renderAll(); updateStorageInfo(); toast('🗑️ Eliminato','');
+  } catch(e) { toast('❌ Errore: ' + e.message,'error'); }
+}
+
+/* ── PLAYER ── */
+let progInterval = null;
+
+function openPlayer(it) {
+  document.getElementById('playerTitle').textContent = it.title;
+  document.getElementById('playerUrlLabel').textContent = it.url;
+  document.getElementById('playerExtLink').href = it.url;
+  document.getElementById('blockedExtLink').href = it.url;
+  document.getElementById('iframeBlocked').classList.remove('show');
+  document.getElementById('iframeLoading').classList.remove('hidden');
+  document.getElementById('progressBar').style.width = '0%';
+
+  clearInterval(progInterval);
+  let prog = 0;
+  progInterval = setInterval(() => {
+    prog = Math.min(prog + Math.random() * 10, 88);
+    document.getElementById('progressBar').style.width = prog + '%';
+  }, 300);
+
+  const iframe = document.getElementById('playerIframe');
+  const embedUrl = getYTVimeoEmbed(it.url);
+
+  let iframeUrl;
+  if (embedUrl) {
+    iframeUrl = embedUrl;
+    document.getElementById('loadingLabel').textContent = 'Caricamento player…';
+  } else if (CONFIG.PROXY_URL) {
+    iframeUrl = `${CONFIG.PROXY_URL}?url=${encodeURIComponent(it.url)}`;
+    document.getElementById('loadingLabel').textContent = `Proxy → ${new URL(it.url).hostname}…`;
+    document.getElementById('proxyStatus').textContent = `✅ Proxy attivo: ${CONFIG.PROXY_URL}`;
+  } else {
+    iframeUrl = it.url;
+    document.getElementById('loadingLabel').textContent = `Caricamento ${new URL(it.url).hostname}…`;
+    document.getElementById('proxyStatus').textContent = `⚠️ Proxy non configurato — molti siti bloccheranno l'iframe`;
+  }
+
+  iframe.onload = () => {
+    clearInterval(progInterval);
+    document.getElementById('progressBar').style.width = '100%';
+    setTimeout(() => { document.getElementById('progressBar').style.width = '0%'; }, 600);
+    document.getElementById('iframeLoading').classList.add('hidden');
+  };
+  iframe.onerror = () => {
+    clearInterval(progInterval);
+    document.getElementById('iframeLoading').classList.add('hidden');
+    document.getElementById('iframeBlocked').classList.add('show');
+  };
+
+  iframe.src = iframeUrl;
+  document.getElementById('playerFs').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function reloadIframe() {
+  const iframe = document.getElementById('playerIframe');
+  document.getElementById('iframeBlocked').classList.remove('show');
+  document.getElementById('iframeLoading').classList.remove('hidden');
+  const src = iframe.src; iframe.src = ''; iframe.src = src;
+  setTimeout(() => document.getElementById('iframeLoading').classList.add('hidden'), 3000);
+}
+
+function closePlayer() {
+  clearInterval(progInterval);
+  document.getElementById('playerFs').classList.add('hidden');
+  document.getElementById('playerIframe').src = 'about:blank';
+  document.getElementById('iframeBlocked').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+function getYTVimeoEmbed(url) {
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}?autoplay=1`;
+  const vm = url.match(/vimeo\.com\/(\d+)/);
+  if (vm) return `https://player.vimeo.com/video/${vm[1]}?autoplay=1`;
+  return null;
+}
+
+/* ── STREAMING SITES ── */
+const STREAMING_SITES = [
+  {id:'cb01',       name:'CB01',                   url:'https://cb01uno.live',               cat:'Film',    emoji:'🎬',search:'https://cb01uno.live/?s={q}'},
+  {id:'cineblog',   name:'CineBlog001',             url:'https://cineblog001.autos',          cat:'Film',    emoji:'🎬',search:'https://cineblog001.autos/?s={q}'},
+  {id:'altadef',    name:'AltaDefinizione',         url:'https://altadefinizione.autos',      cat:'Film',    emoji:'🎬',search:'https://altadefinizione.autos/?s={q}'},
+  {id:'altadef01',  name:'AltaDefinizione 01',      url:'https://altadefinizione-01.cyou',    cat:'Film',    emoji:'🎬',search:'https://altadefinizione-01.cyou/?s={q}'},
+  {id:'genio',      name:'Il Genio dello Streaming',url:'https://il-geniodellostreaming.best',cat:'Film',    emoji:'🎬',search:'https://il-geniodellostreaming.best/?s={q}'},
+  {id:'filmpert',   name:'Film per Tutti',          url:'https://film-pertutti.life',         cat:'Film',    emoji:'🎬',search:'https://film-pertutti.life/?s={q}'},
+  {id:'filmstream', name:'FilmStreaming',           url:'https://filmstreaming.page',         cat:'Film',    emoji:'🎬',search:'https://filmstreaming.page/?s={q}'},
+  {id:'filmez',     name:'Filmez',                  url:'https://filmez.club',                cat:'Film',    emoji:'🎬',search:'https://filmez.club/?s={q}'},
+  {id:'pirate',     name:'Pirate Streaming HD',     url:'https://piratestreaminghd.net',      cat:'Film',    emoji:'🎬',search:'https://piratestreaminghd.net/?s={q}'},
+  {id:'casacin',    name:'Casa Cinema',             url:'https://casa-cinema.art',            cat:'Film',    emoji:'🎬',search:'https://casa-cinema.art/?s={q}'},
+  {id:'tantifilm',  name:'Tanti Film',              url:'https://tantifilm.be',               cat:'Film',    emoji:'🎬',search:'https://tantifilm.be/?s={q}'},
+  {id:'guardaserie',name:'Guarda Serie TV',         url:'https://guardaserietv.autos',        cat:'Serie TV',emoji:'📺',search:'https://guardaserietv.autos/?s={q}'},
+  {id:'eurostream', name:'EuroStreamings',          url:'https://eurostreamings.beer',        cat:'Serie TV',emoji:'📺',search:'https://eurostreamings.beer/?s={q}'},
+  {id:'animeunity', name:'AnimeUnity',              url:'https://www.animeunity.so',          cat:'Anime',   emoji:'🎌',search:'https://www.animeunity.so/archivio?title={q}'},
+  {id:'toonitalia', name:'Toonitalia',              url:'https://toonitalia.xyz',             cat:'Anime',   emoji:'🎌',search:'https://toonitalia.xyz/?s={q}'},
+  {id:'animeworld', name:'AnimeWorld',              url:'https://animeworld.ac',              cat:'Anime',   emoji:'🎌',search:'https://animeworld.ac/search?keyword={q}'},
+  {id:'animesaturn',name:'AnimeSaturn',             url:'https://www.animesaturn.cx',         cat:'Anime',   emoji:'🎌',search:'https://www.animesaturn.cx/animelist?search={q}'},
+];
+
+let selectedSites = new Set(STREAMING_SITES.map(s => s.id));
+
+function openSearchModal() {
+  document.getElementById('smQuery').value = document.getElementById('heroSearch').value.trim();
+  renderSmSiteList();
+  document.getElementById('searchOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('smQuery').focus(), 80);
+}
+function closeSearchModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('searchOverlay').classList.add('hidden');
+}
+function renderSmSiteList() {
+  const c = document.getElementById('smSiteList'); c.innerHTML = '';
+  const cats = [...new Set(STREAMING_SITES.map(s => s.cat))];
+  cats.forEach(cat => {
+    const sites = STREAMING_SITES.filter(s => s.cat === cat);
+    const allSel = sites.every(s => selectedSites.has(s.id));
+    const sec = document.createElement('div'); sec.className = 'site-cat';
+    sec.innerHTML = `<div class="site-cat-title"><span>${cat} (${sites.length})</span>
+      <button class="btntog" onclick="toggleCat('${cat}')">${allSel?'Deseleziona':'Seleziona'} tutto</button></div>`;
+    const list = document.createElement('div'); list.className = 'site-list';
+    sites.forEach(s => {
+      const row = document.createElement('label'); row.className = 'site-row';
+      row.innerHTML = `<input type="checkbox" ${selectedSites.has(s.id)?'checked':''} onchange="toggleSite('${s.id}',this.checked)"/>
+        <span class="site-emoji">${s.emoji}</span>
+        <div class="site-row-info"><div class="site-row-name">${s.name}</div><div class="site-row-url">${s.url}</div></div>`;
+      list.appendChild(row);
+    });
+    sec.appendChild(list); c.appendChild(sec);
+  });
+  updateSelCount();
+}
+function toggleSite(id, c) { c ? selectedSites.add(id) : selectedSites.delete(id); updateSelCount(); }
+function toggleCat(cat) {
+  const sites = STREAMING_SITES.filter(s => s.cat === cat);
+  const allSel = sites.every(s => selectedSites.has(s.id));
+  sites.forEach(s => allSel ? selectedSites.delete(s.id) : selectedSites.add(s.id));
+  renderSmSiteList();
+}
+function toggleSelectAll() {
+  selectedSites = selectedSites.size === STREAMING_SITES.length ? new Set() : new Set(STREAMING_SITES.map(s => s.id));
+  renderSmSiteList();
+}
+function updateSelCount() {
+  document.getElementById('selCount').textContent = `${selectedSites.size}/${STREAMING_SITES.length} siti`;
+  document.getElementById('selAllBtn').textContent = selectedSites.size === STREAMING_SITES.length ? 'Deseleziona tutti' : 'Seleziona tutti';
+}
+function bsUrl(s, q) { return s.search.replace('{q}', encodeURIComponent(q)); }
+function heroOpenAll() {
+  const q = document.getElementById('heroSearch').value.trim();
+  if (!q) { toast('Inserisci un titolo','error'); return; }
+  STREAMING_SITES.forEach(s => window.open(bsUrl(s, q), '_blank'));
+  toast(`⚡ Aperte ${STREAMING_SITES.length} tab per "${q}"`, 'success');
+}
+function openSelectedSites() {
+  const q = document.getElementById('smQuery').value.trim() || document.getElementById('heroSearch').value.trim();
+  if (!q) { toast('Inserisci un titolo','error'); return; }
+  const toOpen = STREAMING_SITES.filter(s => selectedSites.has(s.id));
+  if (!toOpen.length) { toast('Seleziona almeno un sito','error'); return; }
+  toOpen.forEach(s => window.open(bsUrl(s, q), '_blank'));
+  toast(`🔍 Aperte ${toOpen.length} tab per "${q}"`, 'success');
+  closeSearchModal();
+}
+function openAllSites() {
+  const q = document.getElementById('smQuery').value.trim() || document.getElementById('heroSearch').value.trim();
+  if (!q) { toast('Inserisci un titolo','error'); return; }
+  STREAMING_SITES.forEach(s => window.open(bsUrl(s, q), '_blank'));
+  toast(`⚡ Aperte ${STREAMING_SITES.length} tab`, 'success');
+  closeSearchModal();
+}
+
+/* ── IMPORT / EXPORT ── */
+function exportData() {
+  const blob = new Blob([JSON.stringify({ items, tags }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `mystream_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  toast('📦 Esportato!','success');
+}
+
+async function importData(input) {
+  const file = input.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = async e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (!Array.isArray(d.items)) throw new Error('Formato non valido');
+      if (!confirm(`Importare ${d.items.length} link? Sostituirà i dati esistenti.`)) return;
+      if (db) {
+        // Cancella e reinserisci su Supabase
+        await db.from('links').delete().neq('id','00000000-0000-0000-0000-000000000000');
+        const toInsert = d.items.map(it => ({ title:it.title, url:it.url, thumb:it.thumb||'', type:it.type||'altro', tag:it.tag||null, notes:it.notes||'' }));
+        await db.from('links').insert(toInsert);
+      }
+      items = d.items; tags = d.tags || tags;
+      saveLocal(); renderAll(); updateStorageInfo();
+      toast(`✅ Importati ${d.items.length} link`, 'success');
+    } catch(e) { toast('❌ Errore: ' + e.message, 'error'); }
+  };
+  r.readAsText(file); input.value = '';
+}
+
+/* ── UTILS ── */
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(msg, type='') {
+  const el = document.createElement('div'); el.className = `toast ${type}`; el.textContent = msg;
+  document.getElementById('tc').appendChild(el);
+  setTimeout(() => { el.style.animation = 'slideOut .25s ease forwards'; setTimeout(() => el.remove(), 250); }, 2800);
+}
+function updateStorageInfo() {
+  const n = items.length;
+  const src = db ? 'Supabase' : 'localStorage';
+  document.getElementById('storageInfo').textContent = `${n} link salvat${n===1?'o':'i'} · ${src}`;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (!document.getElementById('playerFs').classList.contains('hidden')) { closePlayer(); return; }
+    closeAddModal(); closeSearchModal(); closeLogin();
+  }
+});
+
+/* ── INIT ── */
+initSupabase();
+if (!isConfigured) { loadLocal(); }
+</script>
+</body>
+</html>
